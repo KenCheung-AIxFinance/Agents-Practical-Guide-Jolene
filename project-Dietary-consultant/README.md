@@ -26,3 +26,13 @@
 | `Tool`          | 提供查詢外部資料或進行數學運算（如 BMI 計算） |
 | `Memory`        | 記住用戶的飲食偏好、身體資訊等上下文        |
 | `AgentExecutor` | 整合工具與 LLM，成為可持續對話的智能體     |
+
+
+## Agent Server
+```shell
+pip install --upgrade "langgraph-cli[inmem]"
+```
+
+```shell
+langgraph dev
+```

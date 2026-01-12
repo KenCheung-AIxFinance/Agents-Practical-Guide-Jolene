@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage
 from langchain_deepseek import ChatDeepSeek
 import dotenv
 from langgraph.checkpoint.memory import InMemorySaver
+from langchain_community.tools import DuckDuckGoSearchResults
 
 # Local imports
 from src.utils.workflow_utils import print_workflow_steps
@@ -19,6 +20,7 @@ dotenv.load_dotenv()
 llm = ChatDeepSeek(model_name="deepseek-chat", temperature=0.7)
 
 
+search_tool = DuckDuckGoSearchResults(output_format="list")
 
 @tool()
 def calculate_bmi(height_cm: float, weight_kg: float) -> str:
@@ -31,9 +33,25 @@ def calculate_bmi(height_cm: float, weight_kg: float) -> str:
     except Exception as e:
         return f"錯誤：{str(e)}"
 
+@tool
+def get_runtime_datetime() -> dict:
+    """
+    Get current datetime from the runtime machine.
+    """
+    from datetime import datetime
+    import socket
+    import os
+
+    now = datetime.now()
+
+    return {
+        "datetime": now.isoformat(),
+        "hostname": socket.gethostname(),
+        "runtime_id": os.getenv("RUNTIME_ID", "unknown")
+    }
 
 # Initialize components
-tools = [calculate_bmi]
+tools = [calculate_bmi, search_tool, get_runtime_datetime]
 
 
 def create_dietary_agent(
@@ -78,29 +96,29 @@ def create_dietary_agent(
 agent = create_dietary_agent(llm=llm, tools=tools, checkpointer=None, debug=True)
 # config = get_agent_config()
 
-# if __name__ == '__main__':
-#     # ===== 優化後的互動主迴圈 =====
-#     # ===== 主互動迴圈（無預設問題）=====
-#     print("👋 歡迎使用兒童營養諮詢服務！")
-#     print("您可以輸入任何問題，例如：")
-#     print("  • 「我10歲，女生，身高136體重29」")
-#     print("  • 「怎麼判斷小孩體重是否正常？」")
-#     print("  • 「BMI 是什麼？」")
-#     print("輸入 'quit' 可隨時結束。\n")
-#     while True:
-#         user_input = input("\n你：").strip()
-#         if user_input.lower() in ["quit", "exit", "結束"]:
-#             print("👋 再見！")
-#             break
-#
-#         # 傳送新訊息並取得完整執行軌跡
-#         response = agent.invoke(
-#             {"messages": [HumanMessage(content=user_input)]},
-#             {"configurable": {"thread_id": 1}}
-#         )
-#
-#         # 顯示完整 workflow 步驟（含推理、工具調用、結果）
-#         print_workflow_steps(response["messages"])
+if __name__ == '__main__':
+    # ===== 優化後的互動主迴圈 =====
+    # ===== 主互動迴圈（無預設問題）=====
+    print("👋 歡迎使用兒童營養諮詢服務！")
+    print("您可以輸入任何問題，例如：")
+    print("  • 「我10歲，女生，身高138體重29」")
+    print("  • 「怎麼判斷小孩體重是否正常？」")
+    print("  • 「BMI 是什麼？」")
+    print("輸入 'quit' 可隨時結束。\n")
+    while True:
+        user_input = input("\n你：").strip()
+        if user_input.lower() in ["quit", "exit", "結束"]:
+            print("👋 再見！")
+            break
+
+        # 傳送新訊息並取得完整執行軌跡
+        response = agent.invoke(
+            {"messages": [HumanMessage(content=user_input)]},
+            {"configurable": {"thread_id": 1}}
+        )
+
+        # 顯示完整 workflow 步驟（含推理、工具調用、結果）
+        print_workflow_steps(response["messages"])
 
 """
 1. 解釋代碼
