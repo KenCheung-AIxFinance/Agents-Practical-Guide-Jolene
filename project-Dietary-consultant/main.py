@@ -1,6 +1,12 @@
 """
 Main entry point for the Dietary Consultant application.
 """
+from langchain.agents.middleware.types import AgentState
+
+
+from typing import Any
+
+
 import os
 
 from langchain.agents import create_agent
@@ -9,6 +15,7 @@ from langchain_deepseek import ChatDeepSeek
 import dotenv
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_community.tools import DuckDuckGoSearchResults
+from langchain.agents.middleware import HumanInTheLoopMiddleware
 
 # Local imports
 from src.utils.workflow_utils import print_workflow_steps
@@ -17,7 +24,10 @@ from langchain.tools import tool
 
 # Initialize environment and LLM
 dotenv.load_dotenv()
+print("Loading DeepSeek LLM...")
+# print(f"Environment variables: {os.environ.get('DEEPSEEK_API_KEY')}")
 llm = ChatDeepSeek(model_name="deepseek-chat", temperature=0.7)
+# print(f"LLM initialized with API key: {llm.api_key}")
 
 
 search_tool = DuckDuckGoSearchResults(output_format="list")
@@ -50,8 +60,26 @@ def get_runtime_datetime() -> dict:
         "runtime_id": os.getenv("RUNTIME_ID", "unknown")
     }
 
+
+@tool()
+def send_email_tool(recipient: str, subject: str, body: str) -> str:
+    """Mock function to send an email."""
+    return f"Email sent to {recipient} with subject '{subject}'"
+
 # Initialize components
-tools = [calculate_bmi, search_tool, get_runtime_datetime]
+tools = [calculate_bmi, search_tool, get_runtime_datetime, send_email_tool]
+
+
+hitl_middleware = HumanInTheLoopMiddleware[AgentState, None](
+    interrupt_on={
+        "send_email_tool": {
+            "allowed_decisions": ["approve", "edit", "reject"],
+        },
+        "calculate_bmi":{
+            "allowed_decisions": ["approve", "reject"]
+        }
+    }
+)
 
 
 def create_dietary_agent(
@@ -83,16 +111,25 @@ def create_dietary_agent(
 3. 保持語氣友善、鼓勵，避免使用嚇人詞彙（如「肥胖」「過瘦」），改用「營養均衡」「健康成長」等。
 
 請根據對話上下文決定是否需要工具協助。"""
-
+    if (checkpointer == None):
+        return create_agent(
+        model=llm,
+        tools=tools,
+        system_prompt=agent_prompt,
+        middleware=[hitl_middleware],
+        debug=debug
+    )
     return create_agent(
         model=llm,
         tools=tools,
         system_prompt=agent_prompt,
         checkpointer=checkpointer,
+        middleware=[hitl_middleware],
         debug=debug
     )
 
 # agent = create_dietary_agent(llm=llm, tools=tools, checkpointer=InMemorySaver(), debug=True)
+
 agent = create_dietary_agent(llm=llm, tools=tools, checkpointer=None, debug=True)
 # config = get_agent_config()
 
@@ -119,6 +156,7 @@ if __name__ == '__main__':
 
         # 顯示完整 workflow 步驟（含推理、工具調用、結果）
         print_workflow_steps(response["messages"])
+        pass
 
 """
 1. 解釋代碼
